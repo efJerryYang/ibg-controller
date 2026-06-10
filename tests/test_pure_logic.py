@@ -1128,6 +1128,30 @@ class TestDetectPasswordExpiry(unittest.TestCase):
         self.assertIsNone(days)
 
 
+class TestDetectBadCredentials(unittest.TestCase):
+    """_detect_bad_credentials() catches Gateway login rejection modals."""
+
+    def test_matches_ibkr_invalid_username_or_password_dialog(self):
+        dump = (
+            'JTextPane text="Connection to server failed: Invalid username '
+            'or password. Please check the &quot;Caps Lock&quot; key; '
+            'passwords are case sensitive."'
+        )
+        self.assertTrue(gc._detect_bad_credentials(dump))
+
+    def test_matches_rejected_credentials_variant(self):
+        dump = "Connection failed because credentials were rejected."
+        self.assertTrue(gc._detect_bad_credentials(dump))
+
+    def test_no_match_on_unrelated_gateway_modal(self):
+        dump = "Connecting to server. Please wait."
+        self.assertFalse(gc._detect_bad_credentials(dump))
+
+    def test_no_match_on_empty_input(self):
+        self.assertFalse(gc._detect_bad_credentials(""))
+        self.assertFalse(gc._detect_bad_credentials(None))
+
+
 class TestResolveSafeDismissButtons(unittest.TestCase):
     """v0.5.1: _resolve_safe_dismiss_buttons() builds the ordered
     dismiss allowlist from BYPASS_WARNING. Returns a tuple so

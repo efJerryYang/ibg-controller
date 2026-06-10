@@ -1208,6 +1208,12 @@ _PASSWORD_EXPIRY_DAYS = re.compile(
     r"expire(?:s)?\s+in\s+(\d+)\s+day",
     re.IGNORECASE,
 )
+_BAD_CREDENTIALS_MATCH = re.compile(
+    r"(?:invalid\s+username\s+or\s+password|"
+    r"username\s+or\s+password\s+(?:is\s+)?(?:invalid|incorrect)|"
+    r"credentials?\s+(?:were\s+)?(?:rejected|invalid|incorrect))",
+    re.IGNORECASE,
+)
 
 
 def _detect_password_expiry(dump):
@@ -1231,6 +1237,13 @@ def _detect_password_expiry(dump):
         m = _PASSWORD_EXPIRY_DAYS.search(dump)
         return True, "warning", int(m.group(1)) if m else None
     return False, None, None
+
+
+def _detect_bad_credentials(dump):
+    """Return True when Gateway rejected the supplied login credentials."""
+    if not dump:
+        return False
+    return bool(_BAD_CREDENTIALS_MATCH.search(dump))
 
 
 def handle_post_login_dialogs(app):
@@ -1287,6 +1300,16 @@ def handle_post_login_dialogs(app):
             if not handle_existing_session_dialog():
                 log.error("Existing-session dialog handling failed")
                 return False
+        elif _detect_bad_credentials(dump):
+            log.error("Recognized: bad-credentials dialog")
+            log.error(
+                f"ALERT_LOGIN_FAILED mode={TRADING_MODE} "
+                f"reason=\"bad-credentials\" "
+                f"suggested_action=\"IBKR rejected the configured "
+                f"{TRADING_MODE} username/password; verify TWS_USERID"
+                f"{'_PAPER' if TRADING_MODE == 'paper' else ''} and the "
+                f"corresponding TWS_PASSWORD file\"")
+            return False
         elif "password" in body_lower and (
                 "expire" in body_lower or "expired" in body_lower):
             matched, status, days = _detect_password_expiry(dump)
